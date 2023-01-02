@@ -224,7 +224,6 @@ install: $(buildbin)
 	@if [ $(GOOS) = "linux" ]; then mkdir -pv $(DESTDIR)$(prefix)/lib/telegraf/scripts; fi
 	@if [ $(GOOS) = "linux" ]; then cp -fv scripts/telegraf.service $(DESTDIR)$(prefix)/lib/telegraf/scripts; fi
 	@if [ $(GOOS) = "linux" ]; then cp -fv scripts/init.sh $(DESTDIR)$(prefix)/lib/telegraf/scripts; fi
-	@if [ $(GOOS) = "linux" ]; then cp -fv scripts/telegraf-prepare $(DESTDIR)$(bindir); fi
 	@if [ $(GOOS) = "linux" ]; then cp -fv scripts/telegraf-discover $(DESTDIR)$(bindir); fi
 
 # Telegraf build per platform.  This improves package performance by sharing

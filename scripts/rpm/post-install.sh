@@ -53,80 +53,17 @@ if [[ -d /etc/telegraf ]]; then
    touch /etc/telegraf/discover.conf
 fi
 
-get_one_ip() {
-  ifconfig -a | \
-     perl -ne '
-      BEGIN {
-        sub ip_int {
-          my $ip = shift;
-          return 0 unless defined $ip;
-          my $ipint = 0;
-          my $i = 3;
-          foreach ( $ip =~ /\d+/g) {
-            $ipint += ($_ << (8*$i--));
-          }
-         
-          return $ipint;
-        }
-    
-        # internal ip range
-        sub is_in_privite {
-          my $ipint = shift;
-         
-          if (($ipint >= 167772160 && $ipint <= 184549375)
-             || ($ipint >= 2886729728 && $ipint <= 2887778303)
-             || ($ipint >= 3232235520 && $ipint <= 3232301055)) {
-            return 1;
-          }
-          else {
-            return 0;
-          }
-        }
-    
-        my @ips;
-      };
-    
-      chomp;
-      next unless grep(/inet\b/, $_);
-      my $ip;
-      if (m/\s*inet\s+(?:addr:|)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+/) {
-        $ip = $1;
-      }
-      if (is_in_privite(ip_int($ip))) {
-        push @ips, $ip;
-      }
-    
-      END {
-        if (@ips + 0 > 0) {
-          print $ips[0] . "\n";
-        }
-        else {
-          print "\n";
-        }
-      }
-  '
-}
-
-# change telegraf default tag
-if [[ -f /etc/telegraf/telegraf.conf ]]; then
-  sed -i "s/{{IP}}/$IP/" /etc/telegraf/telegraf.conf
-fi
-
 # Add defaults file, if it doesn't exist
 if [[ ! -f /etc/default/telegraf ]]; then
   touch /etc/default/telegraf
 fi
 
 if [[ -f /etc/default/telegraf ]]; then
-  IP=$(get_one_ip)
-  IP="${IP:-"NULL"}"
-
   if ! grep -q -P "^IP" /etc/default/telegraf; then
-    cat <<EOF >> /etc/default/telegraf
-DC="NULL"
-MARK="NULL"
-TEAM="NULL"
-IP="$IP"
+    cat <<EOF > /etc/default/telegraf
+SCHEME="https"
+TOKEN="efae82c8-e938-be71-7142-990658c86219"
+SERVER="10.84.246.2:8410, 10.84.246.11:8410"
 EOF
   fi
 fi
@@ -149,69 +86,6 @@ if [[ -d /etc/telegraf/telegraf.d ]]; then
 #
 #  # Specify the maximum time waiting for a server response as the value timeout.
 #  timeout = 3
-EOF
-  fi
-
-  # add MegaCli check
-  if [[ ! -f /etc/telegraf/telegraf.d/megacli.conf ]]; then
-    cat <<EOF >> /etc/telegraf/telegraf.d/megacli.conf
-## Read megacli's basic status information
-## This canbe used in physical server.
-#[[inputs.megacli]]
-#  interval = "3600s"
-#  ## Optionally specify the path to the megacli executable
-#  path_megacli = "/usr/bin/MegaCli"
-#
-#  ## Gather info of the following type:
-#  ## raid, disk, bbu
-#  ## default is gather all of the three type
-#  gather_type = ['disk', 'raid', 'bbu']
-#
-#  ## On most platforms used cli utilities requires root access.
-#  ## Setting 'use_sudo' to true will make use of sudo to run MegaCli.
-#  ## Sudo must be configured to allow the telegraf user to run MegaCli
-#  ## without a password.
-#  use_sudo = true
-#
-#  ## Timeout for the cli command to complete.
-#  timeout = "5s"
-EOF
-  fi
-
-  if [[ ! -f /etc/telegraf/telegraf.d/http_response.conf ]]; then
-    cat <<EOF >> /etc/telegraf/telegraf.d/http_response.conf
-## HTTP/HTTPS request given an address a method and a timeout
-#[[inputs.http_response]]
-#  interval = "10s"
-#  ## List of urls to query.
-#  urls = ["https://www.baidu.com"]
-#
-#  ## Set http_proxy (telegraf uses the system wide proxy settings if it's is not set)
-#  # http_proxy = "http://localhost:8888"
-#
-#  ## Set response_timeout (default 5 seconds)
-#  # response_timeout = "5s"
-#
-#  ## HTTP Request Method
-#  # method = "GET"
-#
-#  ## Whether to follow redirects from the server (defaults to false)
-#  # follow_redirects = false
-#
-#  ## Optional HTTP Basic Auth Credentials
-#  # username = "username"
-#  # password = "password"
-#
-#  # response_body_max_size = "32MiB"
-#
-#  ## Optional substring or regex match in body of the response (case sensitive)
-#  # response_string_match = "ok"
-#
-#  ## Expected response status code.
-#  ## The status code of the response is compared to this value. If they match, the field
-#  ## "response_status_code_match" will be 1, otherwise it will be 0. If the
-#  ## expected status code is 0, the check is disabled and the field won't be added.
-#  response_status_code = 200
 EOF
   fi
 
@@ -264,6 +138,10 @@ Defaults!PROCGATHER !logfile, !syslog, !pam_session, !requiretty
 Cmnd_Alias IPMITOOL = /usr/bin/ipmitool *
 telegraf	ALL=(root)	NOPASSWD: IPMITOOL
 Defaults!IPMITOOL !logfile, !syslog, !pam_session, !requiretty
+
+Cmnd_Alias DISCOVER = /usr/bin/telegraf-discover *
+telegraf	ALL=(root)	NOPASSWD: DISCOVER
+Defaults!DISCOVER !logfile, !syslog, !pam_session, !requiretty
 EOF
 
 if ! visudo -c -f /etc/sudoers.d/telegraf >/dev/null 2>&1; then
@@ -287,6 +165,10 @@ Defaults!PROCGATHER !logfile, !syslog, !requiretty
 Cmnd_Alias IPMITOOL = /usr/bin/ipmitool *
 telegraf	ALL=(root)	NOPASSWD: IPMITOOL
 Defaults!IPMITOOL !logfile, !syslog, !requiretty
+
+Cmnd_Alias DISCOVER = /usr/bin/telegraf-discover *
+telegraf	ALL=(root)	NOPASSWD: DISCOVER
+Defaults!DISCOVER !logfile, !syslog, !pam_session, !requiretty
 EOF
 fi
 

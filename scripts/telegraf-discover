@@ -90,6 +90,7 @@ my $token = "";
 my $server;
 my $scheme;
 my $jitter= 5; # sleep random seconds
+my $precheck;
 
 GetOptions(
   "conf=s"    => \$conf,
@@ -100,6 +101,7 @@ GetOptions(
   "server=s@" => \$server,
   "scheme=s"  => \$scheme,
   "jitter=i"  => \$jitter,
+  "precheck!" => \$precheck,
   "verbose!"  => \$verbose,
   "help|h"    => \$help,
 ) or die "error:$!";
@@ -119,6 +121,24 @@ open my $fp, "<", $0
 
 unless (defined $fp) {
   Utils::time_print("fp error, exit ...");
+  exit 1;
+}
+
+if (-e $default) {
+  unless(Utils::pre_ip_check_set($default)) {
+    Utils::time_print("can not check and set ip for $default, exit...");
+    exit 1;
+  }
+
+  # only check and set default file
+  if ($precheck) {
+    Utils::time_print("only precheck.");
+    exit 0;
+  }
+
+}
+else {
+  Utils::time_print("no such file: $default, exit...");
   exit 1;
 }
 
@@ -361,6 +381,7 @@ use POSIX qw(strftime);
 use File::Path;
 use File::Find;
 use File::Basename;
+use File::Copy qw(copy);
 use Sys::Hostname;
 use IO::Socket::INET;
 use JSONTiny;
@@ -501,6 +522,169 @@ sub is_tcp_port_open {
     return 1;
   }
   return 0;
+}
+
+sub ip_int {
+  my $ip = shift;
+  return 0 unless defined $ip;
+  my $ipint = 0;
+  my $i = 3;
+  foreach ( $ip =~ /\d+/g) {
+    $ipint += ($_ << (8*$i--));
+  }
+ 
+  return $ipint;
+}
+    
+sub is_in_privite {
+  my $ipint = shift;
+ 
+  if (($ipint >= 167772160 && $ipint <= 184549375)
+     || ($ipint >= 2886729728 && $ipint <= 2887778303)
+     || ($ipint >= 3232235520 && $ipint <= 3232301055)) {
+    return 1;
+  }
+  else {
+    return 0;
+  }
+}
+
+sub get_all_ip {
+  my $ignore = shift || 0;
+  open my $fh, '-|', 'ifconfig -a' or die "get ip error $!";
+
+  my @ips;
+  my $interface;
+  my $skip = 0;
+  while (<$fh>) {
+     # internal ip range
+     chomp;
+
+     if (/^(.+):\s+flags/) {
+       $interface = $1;
+     }
+
+     if ($ignore) {
+       if ($interface =~ /docker.*|^lo$/i) {
+         $skip = 1;
+       }
+       else {
+         $skip = 0;
+       }
+     }
+
+     next unless grep(/inet\b/, $_);
+     my $ip;
+     if (m/\s*inet\s+(?:addr:|)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+/) {
+       $ip = $1;
+     }
+     if (is_in_privite(ip_int($ip)) && ! $skip) {
+       push @ips, $ip;
+     }
+  }
+  return @ips;
+}
+    
+sub is_ip_valid {
+   my $ip  = shift;
+   return 0 unless defined $ip;
+
+   my @ips = get_all_ip(1);
+   if (grep(/^$ip$/, @ips)) {
+     return 1;
+   }
+
+   return 0;
+}
+
+sub get_one_ip {
+  my $prefer  = shift;
+  my @ips    = get_all_ip(1);
+
+  my $result;
+  if (@ips + 0 > 0) {
+    if (defined $prefer && $prefer ne "NULL") {
+      my @ns = grep(/^$prefer/, @ips);
+      if (@ns + 0 > 0) {
+        $result = $ns[0];
+      }
+      else {
+        $result = $ips[0];
+      }
+    }
+    else {
+        $result = $ips[0];
+    }
+  }
+
+  return $result;
+}
+
+sub pre_ip_check_set {
+  my $file = shift;
+
+  return 0 unless -e $file;
+
+  my $meta = get_default_meta($file);
+
+  if (defined $meta->{ip} && is_ip_valid($meta->{ip})) {
+    return 1;
+  }
+
+  my $ip = get_one_ip();
+  if (defined $ip) {
+    $meta->{ip} = $ip;
+    return _save_default_meta($file, $meta);
+  }
+
+  return 0;
+}
+
+sub _save_default_meta {
+  my $file = shift;
+  my $meta = shift;
+
+  my $content = "";
+  foreach my $k (qw(ip token server scheme)) {
+    if ($k eq 'server') {
+      $content .= uc($k) . "=" . '"' . join(", ", @{$meta->{server}}) . '"' . "\n";
+    }
+    else {
+      $content .= uc($k) . "=" . '"' . $meta->{$k} . '"' . "\n";
+    }
+  }
+
+  my $dest  = $file . "-" . "backup";
+  my $is_cp = 0;
+
+  # backup before start
+  if (-e $file) {
+    if (file_crc32($file) eq string_crc32($content)) {
+      time_print("skip to write as there is no change in the content and source file!");
+      return 0;
+    }
+
+    if (copy($file, $dest)) {
+      time_print("copy $file to $dest ok!");
+      $is_cp = 1;
+    }
+    else {
+      time_print("copy $file to $dest error!");
+    }
+  }
+
+  if (create_cnf_if($file, $content, 1)) {
+    time_print("write to $file ok!");
+  }
+  else {
+    time_print("write to $file error!");
+    if ($is_cp) {
+      copy($dest, $file) or time_print("recover from $dest error!");
+    }
+    return 0;
+  }
+
+  return 1;
 }
 
 # remove prefix and suffix quote
@@ -1216,7 +1400,7 @@ sub _make_line {
   }
 
   my $line = "$metric,";
-  foreach my $k (qw(dc mark team host ip)) {
+  foreach my $k (qw(host ip)) {
     my $v = $meta->{$k} || 'NULL';
 
     $line .= "$k=$v";
@@ -1303,43 +1487,41 @@ sub get_consul_key {
   my $is_input = $meta->{is_input} || 0;
 
   my $metas = $self->{metas};
-  my $team  = $metas->{team} || 'NULL';
-  my $mark  = $metas->{mark} || 'NULL';
   my $ip    = $metas->{ip} || 'NULL';
 
   my @keys = ();
-  return @keys if (!defined($team) || !defined($mark) || !defined($ip));
+  return @keys if !defined($ip);
 
   if ($tag eq 'discover') {
-    push @keys, "telegraf/$team/$mark/discover/$ip";
-    push @keys, "telegraf/$team/$mark/discover/default";
+    push @keys, "telegraf/common/discover/$ip";
+    push @keys, "telegraf/common/discover/default";
   }
 
   if ($tag eq 'interval') {
-    push @keys, "telegraf/$team/$mark/interval/$ip";
-    push @keys, "telegraf/$team/$mark/interval/default";
+    push @keys, "telegraf/common/interval/$ip";
+    push @keys, "telegraf/common/interval/default";
   }
 
   if ($tag eq 'timechange') {
-    push @keys, "telegraf/$team/$mark/timechange/$ip";
-    push @keys, "telegraf/$team/$mark/timechange/default";
+    push @keys, "telegraf/common/timechange/$ip";
+    push @keys, "telegraf/common/timechange/default";
   }
 
   if ($tag eq 'inputs') {
-    push @keys, "telegraf/$team/$mark/inputs/_lists_";
+    push @keys, "telegraf/common/inputs/_lists_";
   }
 
   if ($tag eq 'updmark') {
-    push @keys, "telegraf/$team/$mark/is_update";
+    push @keys, "telegraf/common/is_update";
   }
 
   if ($tag eq 'sleepmark') {
-    push @keys, "telegraf/$team/$mark/is_sleep";
+    push @keys, "telegraf/common/is_sleep";
   }
 
   if ($is_input) {
-    push @keys, "telegraf/$team/$mark/inputs/$tag/$ip";
-    push @keys, "telegraf/$team/$mark/inputs/$tag/default";
+    push @keys, "telegraf/common/inputs/$tag/$ip";
+    push @keys, "telegraf/common/inputs/$tag/default";
   }
 
   return @keys;
@@ -1466,11 +1648,9 @@ sub meta_ip_ignores {
   my $tag   = shift;
 
   my $metas = $self->{metas};
-  my $team  = $metas->{team} || 'NULL';
-  my $mark  = $metas->{mark} || 'NULL';
   my $ip    = $metas->{ip} || 'NULL';
 
-  my $ignore_key = "telegraf/$team/$mark/inputs/$tag/ip_ignores";
+  my $ignore_key = "telegraf/common/inputs/$tag/ip_ignores";
   my $ignore_ref;
   foreach my $s (shuffle(@{$self->{servers}})) {
     $ignore_ref = $self->make_consul_request($s, $ignore_key);
