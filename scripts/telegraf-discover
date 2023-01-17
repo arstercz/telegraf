@@ -560,7 +560,7 @@ sub get_all_ip {
      # internal ip range
      chomp;
 
-     if (/^(.+):\s+flags/) {
+     if (/^(\S+)(?:\s+Link|:\s+flags)/) {
        $interface = $1;
      }
 
