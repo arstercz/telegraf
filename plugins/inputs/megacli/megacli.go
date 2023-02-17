@@ -385,7 +385,7 @@ func (m *Megacli) gatherDiskStatus(out string, acc telegraf.Accumulator) error {
 			}
 		}
 		if strings.HasPrefix(stats[0], "Firmware state") {
-			sp := getSubstr(`(?P<state>\w+?),\s+`, stats[1])
+			sp := getSubstr(`(?P<state>\w+?)(?:,\s+|$)`, stats[1])
 			var stateVal int64 = 9
 			if len(sp) > 0 {
 				switch sp["state"] {
