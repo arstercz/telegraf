@@ -591,9 +591,10 @@ func (d *Docker) gatherContainerInspect(
 	if info.State != nil {
 		tags["container_status"] = info.State.Status
 		statefields := map[string]interface{}{
-			"oomkilled": info.State.OOMKilled,
-			"pid":       info.State.Pid,
-			"exitcode":  info.State.ExitCode,
+			"oomkilled":    info.State.OOMKilled,
+			"pid":          info.State.Pid,
+			"exitcode":     info.State.ExitCode,
+			"container_id": container.ID,
 		}
 
 		finished, err := time.Parse(time.RFC3339, info.State.FinishedAt)
@@ -619,19 +620,9 @@ func (d *Docker) gatherContainerInspect(
 
 		if info.State.Health != nil {
 			healthfields := map[string]interface{}{
+				"health_status":  info.State.Health.Status,
 				"failing_streak": info.ContainerJSONBase.State.Health.FailingStreak,
 			}
-			// statusVal Use statusVal(int) to replace health_status(string) for compatible prometheus.
-			statusVal := -1
-			switch info.State.Health.Status {
-			case "Starting":
-				statusVal = 2
-			case "Healthy":
-				statusVal = 1
-			case "Unhealthy":
-				statusVal = 0
-			}
-			healthfields["health_status"] = statusVal
 			acc.AddFields("docker_container_health", healthfields, tags, now())
 		}
 	}
@@ -656,7 +647,9 @@ func parseContainerStats(
 		tm = time.Now()
 	}
 
-	memfields := map[string]interface{}{}
+	memfields := map[string]interface{}{
+		"container_id": id,
+	}
 
 	memstats := []string{
 		"active_anon",
@@ -723,6 +716,7 @@ func parseContainerStats(
 			"throttling_periods":           stat.CPUStats.ThrottlingData.Periods,
 			"throttling_throttled_periods": stat.CPUStats.ThrottlingData.ThrottledPeriods,
 			"throttling_throttled_time":    stat.CPUStats.ThrottlingData.ThrottledTime,
+			"container_id":                 id,
 		}
 
 		if daemonOSType != "windows" {
@@ -754,7 +748,8 @@ func parseContainerStats(
 			percputags := copyTags(tags)
 			percputags["cpu"] = fmt.Sprintf("cpu%d", i)
 			fields := map[string]interface{}{
-				"usage_total": percpu,
+				"usage_total":  percpu,
+				"container_id": id,
 			}
 			acc.AddFields("docker_container_cpu", fields, percputags, tm)
 		}
@@ -763,14 +758,15 @@ func parseContainerStats(
 	totalNetworkStatMap := make(map[string]interface{})
 	for network, netstats := range stat.Networks {
 		netfields := map[string]interface{}{
-			"rx_dropped": netstats.RxDropped,
-			"rx_bytes":   netstats.RxBytes,
-			"rx_errors":  netstats.RxErrors,
-			"tx_packets": netstats.TxPackets,
-			"tx_dropped": netstats.TxDropped,
-			"rx_packets": netstats.RxPackets,
-			"tx_errors":  netstats.TxErrors,
-			"tx_bytes":   netstats.TxBytes,
+			"rx_dropped":   netstats.RxDropped,
+			"rx_bytes":     netstats.RxBytes,
+			"rx_errors":    netstats.RxErrors,
+			"tx_packets":   netstats.TxPackets,
+			"tx_dropped":   netstats.TxDropped,
+			"rx_packets":   netstats.RxPackets,
+			"tx_errors":    netstats.TxErrors,
+			"tx_bytes":     netstats.TxBytes,
+			"container_id": id,
 		}
 		// Create a new network tag dictionary for the "network" tag
 		if choice.Contains("network", perDeviceInclude) {
@@ -808,6 +804,7 @@ func parseContainerStats(
 	if choice.Contains("network", totalInclude) && len(totalNetworkStatMap) != 0 {
 		nettags := copyTags(tags)
 		nettags["network"] = "total"
+		totalNetworkStatMap["container_id"] = id
 		acc.AddFields("docker_container_net", totalNetworkStatMap, nettags, tm)
 	}
 
@@ -893,6 +890,7 @@ func gatherBlockIOMetrics(
 
 	totalStatMap := make(map[string]interface{})
 	for device, fields := range deviceStatMap {
+		fields["container_id"] = id
 		if perDevice {
 			iotags := copyTags(tags)
 			iotags["device"] = device
@@ -924,6 +922,7 @@ func gatherBlockIOMetrics(
 		}
 	}
 	if total {
+		totalStatMap["container_id"] = id
 		iotags := copyTags(tags)
 		iotags["device"] = "total"
 		acc.AddFields("docker_container_blkio", totalStatMap, iotags, tm)
