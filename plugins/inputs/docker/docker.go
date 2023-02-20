@@ -587,14 +587,30 @@ func (d *Docker) gatherContainerInspect(
 			}
 		}
 	}
-
+	var statusVal uint64 = 0
 	if info.State != nil {
-		tags["container_status"] = info.State.Status
+		switch info.State.Status {
+		case "created":
+			statusVal = 1
+		case "running":
+			statusVal = 2
+		case "paused":
+			statusVal = 3
+		case "restarting":
+			statusVal = 4
+		case "removing":
+			statusVal = 5
+		case "exited":
+			statusVal = 6
+		case "dead":
+			statusVal = 7
+		}
+
 		statefields := map[string]interface{}{
-			"oomkilled":    info.State.OOMKilled,
-			"pid":          info.State.Pid,
-			"exitcode":     info.State.ExitCode,
-			"container_id": container.ID,
+			"oomkilled":        info.State.OOMKilled,
+			"pid":              info.State.Pid,
+			"exitcode":         info.State.ExitCode,
+			"container_status": statusVal,
 		}
 
 		finished, err := time.Parse(time.RFC3339, info.State.FinishedAt)
@@ -620,14 +636,23 @@ func (d *Docker) gatherContainerInspect(
 
 		if info.State.Health != nil {
 			healthfields := map[string]interface{}{
-				"health_status":  info.State.Health.Status,
 				"failing_streak": info.ContainerJSONBase.State.Health.FailingStreak,
 			}
+			healthStatusVal := -1
+			switch info.State.Health.Status {
+			case "Starting":
+				healthStatusVal = 2
+			case "Healthy":
+				healthStatusVal = 1
+			case "Unhealthy":
+				healthStatusVal = 0
+			}
+			healthfields["health_status"] = healthStatusVal
 			acc.AddFields("docker_container_health", healthfields, tags, now())
 		}
 	}
 
-	parseContainerStats(v, acc, tags, container.ID, d.PerDeviceInclude, d.TotalInclude, daemonOSType)
+	parseContainerStats(v, acc, tags, container.ID, d.PerDeviceInclude, d.TotalInclude, daemonOSType, statusVal)
 
 	return nil
 }
@@ -640,6 +665,7 @@ func parseContainerStats(
 	perDeviceInclude []string,
 	totalInclude []string,
 	daemonOSType string,
+	ContainerStatusVal uint64,
 ) {
 	tm := stat.Read
 
@@ -647,10 +673,7 @@ func parseContainerStats(
 		tm = time.Now()
 	}
 
-	memfields := map[string]interface{}{
-		"container_id": id,
-	}
-
+	memfields := map[string]interface{}{}
 	memstats := []string{
 		"active_anon",
 		"active_file",
@@ -704,7 +727,9 @@ func parseContainerStats(
 		memfields["commit_peak_bytes"] = stat.MemoryStats.CommitPeak
 		memfields["private_working_set"] = stat.MemoryStats.PrivateWorkingSet
 	}
-
+	if ContainerStatusVal != 0 {
+		memfields["container_status"] = ContainerStatusVal
+	}
 	acc.AddFields("docker_container_mem", memfields, tags, tm)
 
 	if choice.Contains("cpu", totalInclude) {
@@ -716,9 +741,7 @@ func parseContainerStats(
 			"throttling_periods":           stat.CPUStats.ThrottlingData.Periods,
 			"throttling_throttled_periods": stat.CPUStats.ThrottlingData.ThrottledPeriods,
 			"throttling_throttled_time":    stat.CPUStats.ThrottlingData.ThrottledTime,
-			"container_id":                 id,
 		}
-
 		if daemonOSType != "windows" {
 			previousCPU := stat.PreCPUStats.CPUUsage.TotalUsage
 			previousSystem := stat.PreCPUStats.SystemUsage
@@ -731,6 +754,10 @@ func parseContainerStats(
 
 		cputags := copyTags(tags)
 		cputags["cpu"] = "cpu-total"
+		if ContainerStatusVal != 0 {
+			cpufields["container_status"] = ContainerStatusVal
+		}
+
 		acc.AddFields("docker_container_cpu", cpufields, cputags, tm)
 	}
 
@@ -748,8 +775,10 @@ func parseContainerStats(
 			percputags := copyTags(tags)
 			percputags["cpu"] = fmt.Sprintf("cpu%d", i)
 			fields := map[string]interface{}{
-				"usage_total":  percpu,
-				"container_id": id,
+				"usage_total": percpu,
+			}
+			if ContainerStatusVal != 0 {
+				fields["container_status"] = ContainerStatusVal
 			}
 			acc.AddFields("docker_container_cpu", fields, percputags, tm)
 		}
@@ -758,20 +787,22 @@ func parseContainerStats(
 	totalNetworkStatMap := make(map[string]interface{})
 	for network, netstats := range stat.Networks {
 		netfields := map[string]interface{}{
-			"rx_dropped":   netstats.RxDropped,
-			"rx_bytes":     netstats.RxBytes,
-			"rx_errors":    netstats.RxErrors,
-			"tx_packets":   netstats.TxPackets,
-			"tx_dropped":   netstats.TxDropped,
-			"rx_packets":   netstats.RxPackets,
-			"tx_errors":    netstats.TxErrors,
-			"tx_bytes":     netstats.TxBytes,
-			"container_id": id,
+			"rx_dropped": netstats.RxDropped,
+			"rx_bytes":   netstats.RxBytes,
+			"rx_errors":  netstats.RxErrors,
+			"tx_packets": netstats.TxPackets,
+			"tx_dropped": netstats.TxDropped,
+			"rx_packets": netstats.RxPackets,
+			"tx_errors":  netstats.TxErrors,
+			"tx_bytes":   netstats.TxBytes,
 		}
 		// Create a new network tag dictionary for the "network" tag
 		if choice.Contains("network", perDeviceInclude) {
 			nettags := copyTags(tags)
 			nettags["network"] = network
+			if ContainerStatusVal != 0 {
+				netfields["container_status"] = ContainerStatusVal
+			}
 			acc.AddFields("docker_container_net", netfields, nettags, tm)
 		}
 		if choice.Contains("network", totalInclude) {
@@ -804,14 +835,16 @@ func parseContainerStats(
 	if choice.Contains("network", totalInclude) && len(totalNetworkStatMap) != 0 {
 		nettags := copyTags(tags)
 		nettags["network"] = "total"
-		totalNetworkStatMap["container_id"] = id
+		if ContainerStatusVal != 0 {
+			totalNetworkStatMap["container_status"] = ContainerStatusVal
+		}
 		acc.AddFields("docker_container_net", totalNetworkStatMap, nettags, tm)
 	}
 
 	perDeviceBlkio := choice.Contains("blkio", perDeviceInclude)
 	totalBlkio := choice.Contains("blkio", totalInclude)
 
-	gatherBlockIOMetrics(stat, acc, tags, tm, id, perDeviceBlkio, totalBlkio)
+	gatherBlockIOMetrics(stat, acc, tags, tm, id, perDeviceBlkio, totalBlkio, ContainerStatusVal)
 }
 
 // Make a map of devices to their block io stats
@@ -884,16 +917,22 @@ func gatherBlockIOMetrics(
 	id string,
 	perDevice bool,
 	total bool,
+	ContainerStatusVal uint64,
 ) {
 	blkioStats := stat.BlkioStats
 	deviceStatMap := getDeviceStatMap(blkioStats)
 
 	totalStatMap := make(map[string]interface{})
+	if ContainerStatusVal != 0 {
+		totalStatMap["container_status"] = ContainerStatusVal
+	}
 	for device, fields := range deviceStatMap {
-		fields["container_id"] = id
 		if perDevice {
 			iotags := copyTags(tags)
 			iotags["device"] = device
+			if ContainerStatusVal != 0 {
+				fields["container_status"] = ContainerStatusVal
+			}
 			acc.AddFields("docker_container_blkio", fields, iotags, tm)
 		}
 		if total {
@@ -922,9 +961,11 @@ func gatherBlockIOMetrics(
 		}
 	}
 	if total {
-		totalStatMap["container_id"] = id
 		iotags := copyTags(tags)
 		iotags["device"] = "total"
+		if ContainerStatusVal != 0 {
+			totalStatMap["container_status"] = ContainerStatusVal
+		}
 		acc.AddFields("docker_container_blkio", totalStatMap, iotags, tm)
 	}
 }
