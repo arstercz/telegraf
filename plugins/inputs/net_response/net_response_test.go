@@ -96,10 +96,14 @@ func TestTCPError(t *testing.T) {
 	// Error
 	err1 := c.Gather(&acc)
 	require.NoError(t, err1)
+	for _, p := range acc.Metrics {
+		p.Fields["response_time"] = 1.0
+	}
 	acc.AssertContainsTaggedFields(t,
 		"net_response",
 		map[string]interface{}{
 			"result_code": uint64(2),
+			"response_time" :1.0,
 		},
 		map[string]string{
 			"server":   "",

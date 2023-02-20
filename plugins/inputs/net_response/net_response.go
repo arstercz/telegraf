@@ -83,6 +83,7 @@ func (n *NetResponse) TCPGather() (tags map[string]string, fields map[string]int
 	conn, err := net.DialTimeout("tcp", n.Address, n.Timeout.Duration)
 	// Stop timer
 	responseTime := time.Since(start).Seconds()
+	defer func() { fields["response_time"] = responseTime }()
 	// Handle error
 	if err != nil {
 		if e, ok := err.(net.Error); ok && e.Timeout() {
@@ -127,7 +128,6 @@ func (n *NetResponse) TCPGather() (tags map[string]string, fields map[string]int
 	} else {
 		setResultOnlyFields(Success, fields)
 	}
-	fields["response_time"] = responseTime
 	return tags, fields
 }
 
@@ -165,6 +165,7 @@ func (n *NetResponse) UDPGather() (tags map[string]string, fields map[string]int
 	_, _, err = conn.ReadFromUDP(buf)
 	// Stop timer
 	responseTime := time.Since(start).Seconds()
+	defer func() { fields["response_time"] = responseTime }()
 	// Handle error
 	if err != nil {
 		setResultOnlyFields(ReadFailed, fields)
@@ -179,8 +180,6 @@ func (n *NetResponse) UDPGather() (tags map[string]string, fields map[string]int
 	} else {
 		setResultOnlyFields(StringMismatch, fields)
 	}
-
-	fields["response_time"] = responseTime
 
 	return tags, fields
 }
