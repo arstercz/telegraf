@@ -96,17 +96,19 @@ func TestTCPError(t *testing.T) {
 	// Error
 	err1 := c.Gather(&acc)
 	require.NoError(t, err1)
+	for _, p := range acc.Metrics {
+		p.Fields["response_time"] = 1.0
+	}
 	acc.AssertContainsTaggedFields(t,
 		"net_response",
 		map[string]interface{}{
 			"result_code": uint64(2),
-			"result_type": "connection_failed",
+			"response_time" :1.0,
 		},
 		map[string]string{
 			"server":   "",
 			"port":     "9999",
 			"protocol": "tcp",
-			"result":   "connection_failed",
 		},
 	)
 }
@@ -140,12 +142,9 @@ func TestTCPOK1(t *testing.T) {
 		"net_response",
 		map[string]interface{}{
 			"result_code":   uint64(0),
-			"result_type":   "success",
-			"string_found":  true,
 			"response_time": 1.0,
 		},
 		map[string]string{
-			"result":   "success",
 			"server":   "127.0.0.1",
 			"port":     "2004",
 			"protocol": "tcp",
@@ -184,12 +183,9 @@ func TestTCPOK2(t *testing.T) {
 		"net_response",
 		map[string]interface{}{
 			"result_code":   uint64(4),
-			"result_type":   "string_mismatch",
-			"string_found":  false,
 			"response_time": 1.0,
 		},
 		map[string]string{
-			"result":   "string_mismatch",
 			"server":   "127.0.0.1",
 			"port":     "2004",
 			"protocol": "tcp",
@@ -220,12 +216,9 @@ func TestUDPError(t *testing.T) {
 		"net_response",
 		map[string]interface{}{
 			"result_code":   uint64(3),
-			"result_type":   "read_failed",
 			"response_time": 1.0,
-			"string_found":  false,
 		},
 		map[string]string{
-			"result":   "read_failed",
 			"server":   "",
 			"port":     "9999",
 			"protocol": "udp",
@@ -262,12 +255,9 @@ func TestUDPOK1(t *testing.T) {
 		"net_response",
 		map[string]interface{}{
 			"result_code":   uint64(0),
-			"result_type":   "success",
-			"string_found":  true,
 			"response_time": 1.0,
 		},
 		map[string]string{
-			"result":   "success",
 			"server":   "127.0.0.1",
 			"port":     "2004",
 			"protocol": "udp",

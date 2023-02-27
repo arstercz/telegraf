@@ -112,19 +112,18 @@ func TestDockerGatherContainerStats(t *testing.T) {
 		"container_image": "redis/image",
 	}
 
-	parseContainerStats(stats, &acc, tags, "123456789", containerMetricClasses, containerMetricClasses, "linux")
+	parseContainerStats(stats, &acc, tags, "123456789", containerMetricClasses, containerMetricClasses, "linux", 0)
 
 	// test docker_container_net measurement
 	netfields := map[string]interface{}{
-		"rx_dropped":   uint64(1),
-		"rx_bytes":     uint64(2),
-		"rx_errors":    uint64(3),
-		"tx_packets":   uint64(4),
-		"tx_dropped":   uint64(1),
-		"rx_packets":   uint64(2),
-		"tx_errors":    uint64(3),
-		"tx_bytes":     uint64(4),
-		"container_id": "123456789",
+		"rx_dropped": uint64(1),
+		"rx_bytes":   uint64(2),
+		"rx_errors":  uint64(3),
+		"tx_packets": uint64(4),
+		"tx_dropped": uint64(1),
+		"rx_packets": uint64(2),
+		"tx_errors":  uint64(3),
+		"tx_bytes":   uint64(4),
 	}
 	nettags := copyTags(tags)
 	nettags["network"] = "eth0"
@@ -139,7 +138,6 @@ func TestDockerGatherContainerStats(t *testing.T) {
 		"rx_packets":   uint64(8),
 		"tx_errors":    uint64(10),
 		"tx_bytes":     uint64(12),
-		"container_id": "123456789",
 	}
 	nettags = copyTags(tags)
 	nettags["network"] = "total"
@@ -151,7 +149,6 @@ func TestDockerGatherContainerStats(t *testing.T) {
 	blkiofields := map[string]interface{}{
 		"io_service_bytes_recursive_read": uint64(100),
 		"io_serviced_recursive_write":     uint64(101),
-		"container_id":                    "123456789",
 	}
 	acc.AssertContainsTaggedFields(t, "docker_container_blkio", blkiofields, blkiotags)
 
@@ -160,7 +157,6 @@ func TestDockerGatherContainerStats(t *testing.T) {
 	blkiofields = map[string]interface{}{
 		"io_service_bytes_recursive_read": uint64(100),
 		"io_serviced_recursive_write":     uint64(302),
-		"container_id":                    "123456789",
 	}
 	acc.AssertContainsTaggedFields(t, "docker_container_blkio", blkiofields, blkiotags)
 
@@ -169,7 +165,6 @@ func TestDockerGatherContainerStats(t *testing.T) {
 		"active_anon":               uint64(0),
 		"active_file":               uint64(1),
 		"cache":                     uint64(0),
-		"container_id":              "123456789",
 		"fail_count":                uint64(1),
 		"hierarchical_memory_limit": uint64(0),
 		"inactive_anon":             uint64(0),
@@ -217,36 +212,31 @@ func TestDockerGatherContainerStats(t *testing.T) {
 		"throttling_throttled_periods": uint64(0),
 		"throttling_throttled_time":    uint64(0),
 		"usage_percent":                float64(400.0),
-		"container_id":                 "123456789",
 	}
 	acc.AssertContainsTaggedFields(t, "docker_container_cpu", cpufields, cputags)
 
 	cputags["cpu"] = "cpu0"
 	cpu0fields := map[string]interface{}{
-		"usage_total":  uint64(1),
-		"container_id": "123456789",
+		"usage_total": uint64(1),
 	}
 	acc.AssertContainsTaggedFields(t, "docker_container_cpu", cpu0fields, cputags)
 
 	cputags["cpu"] = "cpu1"
 	cpu1fields := map[string]interface{}{
-		"usage_total":  uint64(1002),
-		"container_id": "123456789",
+		"usage_total":      uint64(1002),
 	}
 	acc.AssertContainsTaggedFields(t, "docker_container_cpu", cpu1fields, cputags)
 
 	// Those tagged filed should not be present because of offline CPUs
 	cputags["cpu"] = "cpu2"
 	cpu2fields := map[string]interface{}{
-		"usage_total":  uint64(0),
-		"container_id": "123456789",
+		"usage_total": uint64(0),
 	}
 	acc.AssertDoesNotContainsTaggedFields(t, "docker_container_cpu", cpu2fields, cputags)
 
 	cputags["cpu"] = "cpu3"
 	cpu3fields := map[string]interface{}{
-		"usage_total":  uint64(0),
-		"container_id": "123456789",
+		"usage_total":      uint64(0),
 	}
 	acc.AssertDoesNotContainsTaggedFields(t, "docker_container_cpu", cpu3fields, cputags)
 }
@@ -580,16 +570,15 @@ func TestContainerStatus(t *testing.T) {
 						"label1":            "test_value_1",
 						"label2":            "test_value_2",
 						"server_version":    "17.09.0-ce",
-						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
 					map[string]interface{}{
-						"oomkilled":    false,
-						"pid":          1234,
-						"exitcode":     0,
-						"container_id": "e2173b9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296b7dfb",
-						"started_at":   time.Date(2018, 6, 14, 5, 48, 53, 266176036, time.UTC).UnixNano(),
-						"uptime_ns":    int64(3 * time.Minute),
+						"oomkilled":        false,
+						"container_status": uint64(2),
+						"pid":              1234,
+						"exitcode":         0,
+						"started_at":       time.Date(2018, 6, 14, 5, 48, 53, 266176036, time.UTC).UnixNano(),
+						"uptime_ns":        int64(3 * time.Minute),
 					},
 					time.Date(2018, 6, 14, 5, 51, 53, 266176036, time.UTC),
 				),
@@ -616,17 +605,16 @@ func TestContainerStatus(t *testing.T) {
 						"label1":            "test_value_1",
 						"label2":            "test_value_2",
 						"server_version":    "17.09.0-ce",
-						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
 					map[string]interface{}{
-						"oomkilled":    false,
-						"pid":          1234,
-						"exitcode":     0,
-						"container_id": "e2173b9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296b7dfb",
-						"started_at":   time.Date(2018, 6, 14, 5, 48, 53, 266176036, time.UTC).UnixNano(),
-						"finished_at":  time.Date(2018, 6, 14, 5, 53, 53, 266176036, time.UTC).UnixNano(),
-						"uptime_ns":    int64(5 * time.Minute),
+						"oomkilled":        false,
+						"container_status": uint64(2),
+						"pid":              1234,
+						"exitcode":         0,
+						"started_at":       time.Date(2018, 6, 14, 5, 48, 53, 266176036, time.UTC).UnixNano(),
+						"finished_at":      time.Date(2018, 6, 14, 5, 53, 53, 266176036, time.UTC).UnixNano(),
+						"uptime_ns":        int64(5 * time.Minute),
 					},
 					time.Date(2018, 6, 14, 5, 51, 53, 266176036, time.UTC),
 				),
@@ -654,15 +642,14 @@ func TestContainerStatus(t *testing.T) {
 						"label1":            "test_value_1",
 						"label2":            "test_value_2",
 						"server_version":    "17.09.0-ce",
-						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
 					map[string]interface{}{
-						"oomkilled":    false,
-						"pid":          1234,
-						"exitcode":     0,
-						"container_id": "e2173b9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296b7dfb",
-						"finished_at":  time.Date(2018, 6, 14, 5, 53, 53, 266176036, time.UTC).UnixNano(),
+						"oomkilled":        false,
+						"container_status": uint64(2),
+						"pid":              1234,
+						"exitcode":         0,
+						"finished_at":      time.Date(2018, 6, 14, 5, 53, 53, 266176036, time.UTC).UnixNano(),
 					},
 					time.Date(2018, 6, 14, 5, 51, 53, 266176036, time.UTC),
 				),
@@ -690,17 +677,16 @@ func TestContainerStatus(t *testing.T) {
 						"label1":            "test_value_1",
 						"label2":            "test_value_2",
 						"server_version":    "17.09.0-ce",
-						"container_status":  "running",
 						"source":            "e2173b9478a6",
 					},
 					map[string]interface{}{
-						"oomkilled":    false,
-						"pid":          1234,
-						"exitcode":     0,
-						"container_id": "e2173b9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296b7dfb",
-						"started_at":   time.Date(2019, 1, 1, 0, 0, 2, 0, time.UTC).UnixNano(),
-						"finished_at":  time.Date(2019, 1, 1, 0, 0, 1, 0, time.UTC).UnixNano(),
-						"uptime_ns":    int64(1 * time.Second),
+						"oomkilled":        false,
+						"pid":              1234,
+						"container_status": uint64(2),
+						"exitcode":         0,
+						"started_at":       time.Date(2019, 1, 1, 0, 0, 2, 0, time.UTC).UnixNano(),
+						"finished_at":      time.Date(2019, 1, 1, 0, 0, 1, 0, time.UTC).UnixNano(),
+						"uptime_ns":        int64(1 * time.Second),
 					},
 					time.Date(2019, 1, 1, 0, 0, 3, 0, time.UTC),
 				),
@@ -856,8 +842,8 @@ func TestDockerGatherInfo(t *testing.T) {
 	acc.AssertContainsTaggedFields(t,
 		"docker_container_cpu",
 		map[string]interface{}{
-			"usage_total":  uint64(1231652),
-			"container_id": "b7dfbb9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296e2173",
+			"usage_total":      uint64(1231652),
+			"container_status": uint64(2),
 		},
 		map[string]string{
 			"container_name":    "etcd2",
@@ -872,17 +858,16 @@ func TestDockerGatherInfo(t *testing.T) {
 			"label1":            "test_value_1",
 			"label2":            "test_value_2",
 			"server_version":    "17.09.0-ce",
-			"container_status":  "running",
 		},
 	)
 	acc.AssertContainsTaggedFields(t,
 		"docker_container_mem",
 		map[string]interface{}{
-			"container_id":  "b7dfbb9478a6ae55e237d4d74f8bbb753f0817192b5081334dc78476296e2173",
-			"limit":         uint64(18935443456),
-			"max_usage":     uint64(0),
-			"usage":         uint64(0),
-			"usage_percent": float64(0),
+			"limit":            uint64(18935443456),
+			"max_usage":        uint64(0),
+			"usage":            uint64(0),
+			"usage_percent":    float64(0),
+			"container_status": uint64(2),
 		},
 		map[string]string{
 			"engine_host":       "absol",
@@ -896,7 +881,6 @@ func TestDockerGatherInfo(t *testing.T) {
 			"label1":            "test_value_1",
 			"label2":            "test_value_2",
 			"server_version":    "17.09.0-ce",
-			"container_status":  "running",
 		},
 	)
 }
@@ -1261,8 +1245,32 @@ func Test_parseContainerStatsPerDeviceAndTotal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var acc testutil.Accumulator
+			status, ok := tt.args.tags["container_status"]
+			var statusVal uint64
+			if !ok {
+				statusVal = 0
+			} else {
+				switch status {
+				case "created":
+					statusVal = 1
+				case "running":
+					statusVal = 2
+				case "paused":
+					statusVal = 3
+				case "restarting":
+					statusVal = 4
+				case "removing":
+					statusVal = 5
+				case "exited":
+					statusVal = 6
+				case "dead":
+					statusVal = 7
+
+				}
+			}
+
 			parseContainerStats(tt.args.stat, &acc, tt.args.tags, tt.args.id, tt.args.perDeviceInclude,
-				tt.args.totalInclude, tt.args.daemonOSType)
+				tt.args.totalInclude, tt.args.daemonOSType, statusVal)
 
 			actual := FilterMetrics(acc.GetTelegrafMetrics(), func(m telegraf.Metric) bool {
 				return choice.Contains(m.Name(),

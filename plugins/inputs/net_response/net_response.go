@@ -83,12 +83,13 @@ func (n *NetResponse) TCPGather() (tags map[string]string, fields map[string]int
 	conn, err := net.DialTimeout("tcp", n.Address, n.Timeout.Duration)
 	// Stop timer
 	responseTime := time.Since(start).Seconds()
+	defer func() { fields["response_time"] = responseTime }()
 	// Handle error
 	if err != nil {
 		if e, ok := err.(net.Error); ok && e.Timeout() {
-			setResult(Timeout, fields, tags, n.Expect)
+			setResultOnlyFields(Timeout, fields)
 		} else {
-			setResult(ConnectionFailed, fields, tags, n.Expect)
+			setResultOnlyFields(ConnectionFailed, fields)
 		}
 		return tags, fields
 	}
@@ -113,21 +114,20 @@ func (n *NetResponse) TCPGather() (tags map[string]string, fields map[string]int
 		responseTime = time.Since(start).Seconds()
 		// Handle error
 		if err != nil {
-			setResult(ReadFailed, fields, tags, n.Expect)
+			setResultOnlyFields(ReadFailed, fields)
 		} else {
 			// Looking for string in answer
 			RegEx := regexp.MustCompile(`.*` + n.Expect + `.*`)
 			find := RegEx.FindString(string(data))
 			if find != "" {
-				setResult(Success, fields, tags, n.Expect)
+				setResultOnlyFields(Success, fields)
 			} else {
-				setResult(StringMismatch, fields, tags, n.Expect)
+				setResultOnlyFields(StringMismatch, fields)
 			}
 		}
 	} else {
-		setResult(Success, fields, tags, n.Expect)
+		setResultOnlyFields(Success, fields)
 	}
-	fields["response_time"] = responseTime
 	return tags, fields
 }
 
@@ -143,14 +143,14 @@ func (n *NetResponse) UDPGather() (tags map[string]string, fields map[string]int
 	udpAddr, err := net.ResolveUDPAddr("udp", n.Address)
 	// Handle error
 	if err != nil {
-		setResult(ConnectionFailed, fields, tags, n.Expect)
+		setResultOnlyFields(ConnectionFailed, fields)
 		return tags, fields
 	}
 	// Connecting
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	// Handle error
 	if err != nil {
-		setResult(ConnectionFailed, fields, tags, n.Expect)
+		setResultOnlyFields(ConnectionFailed, fields)
 		return tags, fields
 	}
 	defer conn.Close()
@@ -165,9 +165,10 @@ func (n *NetResponse) UDPGather() (tags map[string]string, fields map[string]int
 	_, _, err = conn.ReadFromUDP(buf)
 	// Stop timer
 	responseTime := time.Since(start).Seconds()
+	defer func() { fields["response_time"] = responseTime }()
 	// Handle error
 	if err != nil {
-		setResult(ReadFailed, fields, tags, n.Expect)
+		setResultOnlyFields(ReadFailed, fields)
 		return tags, fields
 	}
 
@@ -175,12 +176,10 @@ func (n *NetResponse) UDPGather() (tags map[string]string, fields map[string]int
 	RegEx := regexp.MustCompile(`.*` + n.Expect + `.*`)
 	find := RegEx.FindString(string(buf))
 	if find != "" {
-		setResult(Success, fields, tags, n.Expect)
+		setResultOnlyFields(Success, fields)
 	} else {
-		setResult(StringMismatch, fields, tags, n.Expect)
+		setResultOnlyFields(StringMismatch, fields)
 	}
-
-	fields["response_time"] = responseTime
 
 	return tags, fields
 }
@@ -237,33 +236,10 @@ func (n *NetResponse) Gather(acc telegraf.Accumulator) error {
 	return nil
 }
 
-func setResult(result ResultType, fields map[string]interface{}, tags map[string]string, expect string) {
-	var tag string
-	switch result {
-	case Success:
-		tag = "success"
-	case Timeout:
-		tag = "timeout"
-	case ConnectionFailed:
-		tag = "connection_failed"
-	case ReadFailed:
-		tag = "read_failed"
-	case StringMismatch:
-		tag = "string_mismatch"
-	}
-
-	tags["result"] = tag
+func setResultOnlyFields(result ResultType, fields map[string]interface{}) {
+	// Result value is only set to Uint type to adapt to prometheus
 	fields["result_code"] = uint64(result)
-
-	// deprecated in 1.7; use result tag
-	fields["result_type"] = tag
-
-	// deprecated in 1.4; use result tag
-	if expect != "" {
-		fields["string_found"] = result == Success
-	}
 }
-
 func init() {
 	inputs.Add("net_response", func() telegraf.Input {
 		return &NetResponse{}
