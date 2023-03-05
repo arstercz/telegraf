@@ -75,7 +75,7 @@ func fileExists(file string) bool {
 	return !info.IsDir()
 }
 
-func (m *Megacli) Init() error {
+func (m *Megacli) PreGather() error {
 	var err error
 
 	if len(m.PathMegacli) > 0 {
@@ -153,6 +153,8 @@ func (m *Megacli) getMegacliVersion() (float64) {
 
 func (m *Megacli) Gather(acc telegraf.Accumulator) error {
 	var err error
+
+	_ = m.PreGather()
 
 	if len(m.GatherType) == 0 {
 		return nil
