@@ -104,7 +104,7 @@ var baseClient = MockClient{
 	},
 	CloseF: func() error {
 		return nil
-	}
+	},
 }
 
 func newClient(host string, tlsConfig *tls.Config) (Client, error) {
