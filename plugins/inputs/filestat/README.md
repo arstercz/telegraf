@@ -33,6 +33,7 @@ examples:
 ```toml
 # Read stats about given file(s)
 [[inputs.filestat]]
+  interval = "60s"
   files = ["/var/log/messages", "/var/log/cron"]
   md5 = false
 
@@ -42,6 +43,7 @@ examples:
 
 
 [[inputs.filestat]]
+  interval = "60s"
   files = ["/var/log/juicefs.log"]
   md5 = false
 
@@ -50,6 +52,7 @@ examples:
   timeout = "5s"
 
 [[inputs.filestat]]
+  interval = "60s"
   files = ["/etc/telegraf/telegraf.conf"]
   md5 = false
 
@@ -58,12 +61,15 @@ examples:
   timeout = "5s"
 
 [[inputs.filestat]]
+  interval = "60s"
   files = ["/etc/motd"]
-  md5 = true
-  md5_crc = false
+  md5 = false
+  md5_crc = true
 
   use_match = false
 ```
+
+> **note**: the match_cmd(such as wt-logfilter, grep) running as `telegraf` use, so must have permission to read the files. 
 
 ### Measurements & Fields:
 
