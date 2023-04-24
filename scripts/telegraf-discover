@@ -1995,11 +1995,40 @@ sub get_server_list {
   return \%results;
 }
 
+sub _perm_docker {
+  my $sockf = shift;
+
+  my $id = getgrnam("docker");
+  if (defined $id and $id > 0) {
+    my ($high, $low) = Utils::exec_system("usermod -aG docker telegraf");
+    if ($high != 0 || $low != 0) {
+      Utils::time_print("usermod telegraf to read docker socket error! high: $high, low: $low");
+    }
+    else {
+      return 1;
+    }
+  }
+  else {
+    return 0 unless -e $sockf;
+    my $cmd = "setfacl -m g:telegraf:rw $sockf";
+    my ($high, $low) = Utils::exec_system("$cmd");
+    if ($high != 0 || $low != 0) {
+      Utils::time_print("error - setfacl to $sockf error! high: $high, low: $low");
+    }
+    else {
+      return 1;
+    }
+  }
+
+  Utils::time_print("warn - need add telegraf user to read docker unix group(eg: /var/run/docker.sock)");
+  return 0;
+}
+
 sub _replace_docker {
   my $temp  = shift;
   my $sockf = shift;
 
-  if (-e $sockf) {
+  if (-e $sockf && _perm_docker($sockf)) {
     my $socks = "unix://$sockf";
     $temp =~ s/docker_sock_path/$socks/g;
   }
