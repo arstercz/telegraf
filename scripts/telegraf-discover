@@ -2000,7 +2000,8 @@ sub _replace_docker {
   my $sockf = shift;
 
   if (-e $sockf) {
-    $temp =~ s/docker_sock_path/$sockf/g;
+    my $socks = "unix://$sockf";
+    $temp =~ s/docker_sock_path/$socks/g;
   }
   else {
     $temp = "";
