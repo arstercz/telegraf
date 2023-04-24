@@ -173,6 +173,20 @@ fi
 
 fi
 
+if pidof dockerd >/dev/null 2>&1; then
+  if getent group docker >/dev/null 2>&1; then
+     usermod -aG docker telegraf
+  else
+     if [[ -e "/var/run/docker.sock" ]]; then
+         setfacl -m g:telegraf:rw /var/run/docker.sock
+     else
+         echo "Warn - no docker user or setfacl error"
+         echo "Warn - need add telegraf user to read docker unix group(eg: /var/run/docker.sock)"
+         echo
+     fi
+  fi
+fi
+
 if [[ "$(readlink /proc/1/exe)" == */systemd ]]; then
 	install_systemd /lib/systemd/system/telegraf.service
 	deb-systemd-invoke restart telegraf.service || echo "WARNING: systemd not running."

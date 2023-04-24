@@ -1855,7 +1855,7 @@ sub is_support {
   my $self = shift;
   my $type = shift;
 
-  my @lists = qw(memcached redis pika mysql mongodb postgresql dns_query megacli iptables haproxy);
+  my @lists = qw(memcached redis pika mysql mongodb postgresql dns_query megacli iptables docker haproxy);
   foreach my $k (@lists) {
     return 1 if $k eq $type;
   }
@@ -1990,9 +1990,73 @@ sub get_server_list {
   $results{non_listen}->{dns_query} = {};
   $results{one_enable}->{megacli} = {};
   $results{one_enable}->{iptables} = {};
+  $results{one_enable}->{docker} = {};
 
   return \%results;
 }
+
+sub _replace_docker {
+  my $temp  = shift;
+  my $sockf = shift;
+
+  if (-e $sockf) {
+    $temp =~ s/docker_sock_path/$sockf/g;
+  }
+  else {
+    $temp = "";
+  }
+
+  return $temp;
+}
+
+sub disc_docker {
+  my $self = shift;
+  my $secs = shift;
+
+  my $temp = <<'TEMP_END';
+# Read metrics about docker containers
+[[inputs.docker]]
+  ## Docker Endpoint
+  ##   To use TCP, set endpoint = "tcp://[ip]:[port]"
+  ##   To use environment variables (ie, docker-machine), set endpoint = "ENV"
+  endpoint = "docker_sock_path"
+
+  ## Set to true to collect Swarm metrics(desired_replicas, running_replicas)
+  gather_services = false
+
+  ## Set the source tag for the metrics to the container ID hostname, eg first 12 chars
+  source_tag = true
+
+  ## Containers to include and exclude. Collect all if empty. Globs accepted.
+  container_name_include = []
+  container_name_exclude = []
+
+  ## Container states to include and exclude. Globs accepted.
+  ## When empty only containers in the "running" state will be captured.
+  ## example: container_state_include = ["created", "restarting", "running", "removing", "paused", "exited", "dead"]
+  ## example: container_state_exclude = ["created", "restarting", "running", "removing", "paused", "exited", "dead"]
+  container_state_include = ["created", "restarting", "running", "removing", "paused", "exited", "dead"]
+  # container_state_exclude = []
+
+  ## Timeout for docker list, info, and stats commands
+  timeout = "5s"
+
+  perdevice = false
+  perdevice_include = ["blkio", "network"]
+  total = true
+  total_include = ["cpu", "blkio", "network"]
+
+  ## docker labels to include and exclude as tags.  Globs accepted.
+  docker_label_include = []
+  docker_label_exclude = []
+
+  ## Which environment variables should we use as a tag
+  tag_env = ["JAVA_HOME", "HEAP_SIZE"]  
+TEMP_END
+
+  return _replace_docker($temp, "/var/run/docker.sock")
+}
+
 
 sub disc_iptables {
   my $self = shift;
@@ -2813,6 +2877,7 @@ sub temp_outs {
 
   $select_func{'megacli'}   = $self->disc_megacli();
   $select_func{'iptables'}  = $self->disc_iptables();
+  $select_func{'docker'}    = $self->disc_docker();
 
   return $select_func{$type};
 }
@@ -3028,7 +3093,7 @@ sub gen_conf_for_one_enable {
 
   my $counter = 0;
 
-  $secs->{ignore} ||= 0 if _one_enable_white($type);
+  $secs->{ignore} = 0 if _one_enable_white($type);
 
   if (defined($secs->{ignore})) {
     if ($secs->{ignore} > 0) {
