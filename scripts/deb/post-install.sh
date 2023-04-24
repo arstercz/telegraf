@@ -177,8 +177,9 @@ if pidof dockerd >/dev/null 2>&1; then
   if getent group docker >/dev/null 2>&1; then
      usermod -aG docker telegraf
   else
-     if [[ -e "/var/run/docker.sock" ]]; then
-         setfacl -m g:telegraf:rw /var/run/docker.sock
+     sockf=$(netstat -axp | grep docker.sock | awk '{print $NF}' | tail -n 1)
+     if [[ -e "$sockf" ]]; then
+         setfacl -m g:telegraf:rw $sockf
      else
          echo "Warn - no docker user or setfacl error"
          echo "Warn - need add telegraf user to read docker unix group(eg: /var/run/docker.sock)"

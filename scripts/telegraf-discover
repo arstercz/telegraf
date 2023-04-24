@@ -227,6 +227,10 @@ else {
 }
 
 my $disconf = Disconf->new( (update => $update, force => $force_overwrite) );
+
+# hook actions before running
+$disconf->pre_check();
+
 my $results = $disconf->get_server_list();
 my $sects   = Utils::parsecfg($discover);
 $| = 1; # enforce flush for print
@@ -1851,6 +1855,14 @@ sub new {
   return bless $self, $class;
 }
 
+sub pre_check {
+  my $self = shift;
+  if ($self->is_support("docker")) {
+    perm_docker();
+  }
+  # ......
+}
+
 sub is_support {
   my $self = shift;
   my $type = shift;
@@ -1995,8 +2007,8 @@ sub get_server_list {
   return \%results;
 }
 
-sub _perm_docker {
-  my $sockf = shift;
+sub perm_docker {
+  my $sockf = shift || _find_docker_sock();
 
   my $id = getgrnam("docker");
   if (defined $id and $id > 0) {
@@ -2016,6 +2028,7 @@ sub _perm_docker {
       Utils::time_print("error - setfacl to $sockf error! high: $high, low: $low");
     }
     else {
+      Utils::time_print("setfacl to $sockf ok");
       return 1;
     }
   }
@@ -2028,7 +2041,7 @@ sub _replace_docker {
   my $temp  = shift;
   my $sockf = shift;
 
-  if (-e $sockf && _perm_docker($sockf)) {
+  if (-e $sockf && perm_docker($sockf)) {
     my $socks = "unix://$sockf";
     $temp =~ s/docker_sock_path/$socks/g;
   }
@@ -2037,6 +2050,13 @@ sub _replace_docker {
   }
 
   return $temp;
+}
+
+sub _find_docker_sock {
+  my $cmd = "netstat -axp | grep docker.sock | awk '{print \$NF}' | tail -n 1";
+  my $res = Utils::exec_cmd_return("$cmd") || '';
+
+  return $res;
 }
 
 sub disc_docker {
@@ -2084,7 +2104,7 @@ sub disc_docker {
   tag_env = ["JAVA_HOME", "HEAP_SIZE"]  
 TEMP_END
 
-  return _replace_docker($temp, "/var/run/docker.sock")
+  return _replace_docker($temp, _find_docker_sock());
 }
 
 
