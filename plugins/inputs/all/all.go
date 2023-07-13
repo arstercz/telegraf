@@ -53,6 +53,7 @@ import (
 	_ "github.com/influxdata/telegraf/plugins/inputs/filestat"
 	_ "github.com/influxdata/telegraf/plugins/inputs/fireboard"
 	_ "github.com/influxdata/telegraf/plugins/inputs/fluentd"
+	_ "github.com/influxdata/telegraf/plugins/inputs/flume"
 	_ "github.com/influxdata/telegraf/plugins/inputs/github"
 	_ "github.com/influxdata/telegraf/plugins/inputs/gnmi"
 	_ "github.com/influxdata/telegraf/plugins/inputs/graylog"
