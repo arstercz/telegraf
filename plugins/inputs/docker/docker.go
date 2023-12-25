@@ -643,12 +643,16 @@ func (d *Docker) gatherContainerInspect(
 			}
 			healthStatusVal := -1
 			switch info.State.Health.Status {
-			case "Starting":
+			case types.NoHealthcheck:
+				healthStatusVal = 3
+			case types.Starting:
 				healthStatusVal = 2
-			case "Healthy":
+			case types.Healthy:
 				healthStatusVal = 1
-			case "Unhealthy":
+			case types.Unhealthy:
 				healthStatusVal = 0
+			default:
+				d.Log.Warn("docker: unknown health status [%s]", info.State.Health.Status)
 			}
 			healthfields["health_status"] = healthStatusVal
 			acc.AddFields("docker_container_health", healthfields, tags, now())

@@ -307,7 +307,7 @@ status if configured.
     - container_version
   - fields:
     - container_status (integer,  1 = created, 2 = running, 3 = paused, 4 = restarting, 5 = removing, 6 = exited, 7 = dead)
-    - health_status (integer,  0 = Unhealthy, 1 = Healthy, 2 = Starting)
+    - health_status (integer,  0 = Unhealthy, 1 = Healthy, 2 = Starting, 4 = NoHealthcheck)
   	- failing_streak (integer)
 
 - docker_container_status
