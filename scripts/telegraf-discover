@@ -247,8 +247,8 @@ my $is_trigger = 0;
 my $is_alive = $disconf->is_telegraf_alive();
 if ($is_alive) {
   Utils::time_print("ok - telegraf is running");
-  if ($disconf->is_telegraf_conf_change($conf)) {
-    Utils::time_print("warn - conf was changed but not restart telegraf!");
+  if ($disconf->is_telegraf_conf_change($conf, $default)) {
+    Utils::time_print("warn - conf(include default) was changed but not restart telegraf!");
     $is_trigger++;
   }
 }
@@ -1916,9 +1916,12 @@ sub _get_file_mtime {
 sub is_telegraf_conf_change {
   my $self = shift;
   my $path = shift;
+  my $default   = shift;
 
   my $ts_now    = time;
   my @cnfs      = Utils::get_confd_list($path);
+  push @cnfs, $default if defined $default;
+
   foreach my $k (@cnfs) {
     next if $k =~ /discover/i;
 
