@@ -87,14 +87,16 @@ func (c *X509Cert) serverName(u *url.URL) (string, error) {
 }
 
 func (c *X509Cert) getCert(u *url.URL, timeout time.Duration) ([]*x509.Certificate, error) {
+	protocol := u.Scheme
 	switch u.Scheme {
 	case "https":
-		u.Scheme = "tcp"
+		protocol = "tcp"
+		//u.Scheme = "tcp"
 		fallthrough
 	case "udp", "udp4", "udp6":
 		fallthrough
 	case "tcp", "tcp4", "tcp6":
-		ipConn, err := net.DialTimeout(u.Scheme, u.Host, timeout)
+		ipConn, err := net.DialTimeout(protocol, u.Host, timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -109,7 +111,7 @@ func (c *X509Cert) getCert(u *url.URL, timeout time.Duration) ([]*x509.Certifica
 		c.tlsCfg.InsecureSkipVerify = true
 		conn := tls.Client(ipConn, c.tlsCfg)
 		defer conn.Close()
-
+		defer func() { c.tlsCfg.ServerName = "" }()
 		hsErr := conn.Handshake()
 		if hsErr != nil {
 			return nil, hsErr
@@ -268,7 +270,14 @@ func (c *X509Cert) Init() error {
 	if tlsCfg == nil {
 		tlsCfg = &tls.Config{}
 	}
-
+	if tlsCfg.ServerName != "" && c.ServerName == "" {
+		// Save SNI from tlsCfg.ServerName to c.ServerName and reset tlsCfg.ServerName.
+		// We need to reset c.tlsCfg.ServerName for each certificate when there's
+		// no explicit SNI (c.tlsCfg.ServerName or c.ServerName) otherwise we'll always (re)use
+		// first uri HostName for all certs (see issue 8914)
+		c.ServerName = tlsCfg.ServerName
+		tlsCfg.ServerName = ""
+	}
 	c.tlsCfg = tlsCfg
 
 	return nil
