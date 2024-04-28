@@ -32,7 +32,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.0.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.1.0
 	github.com/aws/smithy-go v1.0.0
-	github.com/beevik/ntp v0.3.0 // indirect
+	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.0.3
 	github.com/bitly/go-hostpool v0.1.0 // indirect
 	github.com/bmatcuk/doublestar/v3 v3.0.0
@@ -132,13 +132,14 @@ require (
 	github.com/wvanbergen/kazoo-go v0.0.0-20180202103751-f72d8611297a // indirect
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	github.com/yuin/gopher-lua v0.0.0-20180630135845-46796da1b0b4 // indirect
+	go.mongodb.org/mongo-driver v1.5.3
 	go.starlark.net v0.0.0-20210312235212-74c10e2c17dc
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210316164454-77fc1eacc6aa
-	golang.org/x/text v0.3.4
+	golang.org/x/text v0.3.5
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20200205215550-e35592f146e4
 	google.golang.org/api v0.20.0
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
@@ -147,7 +148,6 @@ require (
 	gopkg.in/fatih/pool.v2 v2.0.0 // indirect
 	gopkg.in/gorethink/gorethink.v3 v3.0.5
 	gopkg.in/ldap.v3 v3.1.0
-	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/olivere/elastic.v5 v5.0.70
 	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible

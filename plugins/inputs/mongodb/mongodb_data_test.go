@@ -64,7 +64,7 @@ func TestAddNonReplStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultStats {
+	for key := range defaultStats {
 		assert.True(t, acc.HasFloatField("mongodb", key) || acc.HasInt64Field("mongodb", key), key)
 	}
 }
@@ -85,7 +85,7 @@ func TestAddReplStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range MmapStats {
+	for key := range mmapStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key), key)
 	}
 }
@@ -119,11 +119,11 @@ func TestAddWiredTigerStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range WiredTigerStats {
+	for key := range wiredTigerStats {
 		assert.True(t, acc.HasFloatField("mongodb", key), key)
 	}
 
-	for key := range WiredTigerExtStats {
+	for key := range wiredTigerExtStats {
 		assert.True(t, acc.HasFloatField("mongodb", key) || acc.HasInt64Field("mongodb", key), key)
 	}
 
@@ -146,7 +146,7 @@ func TestAddShardStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultShardStats {
+	for key := range defaultShardStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
@@ -169,7 +169,7 @@ func TestAddLatencyStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultLatencyStats {
+	for key := range defaultLatencyStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
@@ -191,7 +191,7 @@ func TestAddAssertsStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultAssertsStats {
+	for key := range defaultAssertsStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
@@ -226,7 +226,7 @@ func TestAddCommandsStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultCommandsStats {
+	for key := range defaultCommandsStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
@@ -262,7 +262,7 @@ func TestAddTCMallocStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultTCMallocStats {
+	for key := range defaultTCMallocStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
@@ -282,7 +282,7 @@ func TestAddStorageStats(t *testing.T) {
 	d.AddDefaultStats()
 	d.flush(&acc)
 
-	for key := range DefaultStorageStats {
+	for key := range defaultStorageStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
@@ -312,7 +312,7 @@ func TestAddShardHostStats(t *testing.T) {
 
 	var hostsFound []string
 	for host := range hostStatLines {
-		for key := range ShardHostStats {
+		for key := range shardHostStats {
 			assert.True(t, acc.HasInt64Field("mongodb_shard_stats", key))
 		}
 
@@ -340,14 +340,15 @@ func TestStateTag(t *testing.T) {
 	)
 
 	stateTags := make(map[string]string)
-	stateTags["node_type"] = "PRI"
-	stateTags["rs_name"] = "rs1"
+	//stateTags["version"] = "3.6.17"
+	//stateTags["rs_name"] = "rs1"
 
 	var acc testutil.Accumulator
 
 	d.AddDefaultStats()
 	d.flush(&acc)
 	fields := map[string]interface{}{
+		"state_int":                                 int64(0),
 		"active_reads":                              int64(0),
 		"active_writes":                             int64(0),
 		"aggregate_command_failed":                  int64(0),
@@ -480,8 +481,53 @@ func TestStateTag(t *testing.T) {
 		"updates":                                   int64(0),
 		"updates_per_sec":                           int64(0),
 		"uptime_ns":                                 int64(0),
-		"version":                                   "3.6.17",
 		"vsize_megabytes":                           int64(0),
 	}
 	acc.AssertContainsTaggedFields(t, "mongodb", fields, stateTags)
+}
+
+func TestAddTopStats(t *testing.T) {
+	collections := []string{"collectionOne", "collectionTwo"}
+	var topStatLines []TopStatLine
+	for _, collection := range collections {
+		topStatLine := TopStatLine{
+			CollectionName: collection,
+			TotalTime:      0,
+			TotalCount:     0,
+			ReadLockTime:   0,
+			ReadLockCount:  0,
+			WriteLockTime:  0,
+			WriteLockCount: 0,
+			QueriesTime:    0,
+			QueriesCount:   0,
+			GetMoreTime:    0,
+			GetMoreCount:   0,
+			InsertTime:     0,
+			InsertCount:    0,
+			UpdateTime:     0,
+			UpdateCount:    0,
+			RemoveTime:     0,
+			RemoveCount:    0,
+			CommandsTime:   0,
+			CommandsCount:  0,
+		}
+		topStatLines = append(topStatLines, topStatLine)
+	}
+
+	d := NewMongodbData(
+		&StatLine{
+			TopStatLines: topStatLines,
+		},
+		tags,
+	)
+
+	var acc testutil.Accumulator
+	d.AddTopStats()
+	d.flush(&acc)
+
+	for range topStatLines {
+		for key := range topDataStats {
+			assert.True(t, acc.HasInt64Field("mongodb_top_stats", key))
+		}
+	}
 }

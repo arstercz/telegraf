@@ -15,7 +15,7 @@ func TestGetDefaultTags(t *testing.T) {
 		in  string
 		out string
 	}{
-		{"server", server.Url.Host},
+		{"server", server.hostname},
 	}
 	defaultTags := server.getDefaultTags()
 	for _, tt := range tagTests {
@@ -28,14 +28,14 @@ func TestGetDefaultTags(t *testing.T) {
 func TestAddDefaultStats(t *testing.T) {
 	var acc testutil.Accumulator
 
-	err := server.gatherData(&acc, false)
+	err := server.gatherData(&acc, false, true, true, true, []string{"local"})
 	require.NoError(t, err)
 
 	// need to call this twice so it can perform the diff
-	err = server.gatherData(&acc, false)
+	err = server.gatherData(&acc, false, true, true, true, []string{"local"})
 	require.NoError(t, err)
 
-	for key := range DefaultStats {
+	for key := range defaultStats {
 		assert.True(t, acc.HasInt64Field("mongodb", key))
 	}
 }
