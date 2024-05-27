@@ -466,6 +466,13 @@ func (m *Megacli) gatherBbuStatus(out string, acc telegraf.Accumulator) error {
 				stateVal = 1
 			}
 			fields["state"] = stateVal
+
+			if strings.EqualFold(strings.TrimSpace(stats[1]), "Missing") {
+				tags["adapter"] = adapter_no
+				acc.AddFields("megacli_bbu", fields, tags)
+				tags = map[string]string{}
+				fields = map[string]interface{}{}
+			}
 		}
 		if strings.HasPrefix(stats[0], "Relative State of Charge") {
 			fields["charge_relative"] = int64(0)
@@ -486,6 +493,7 @@ func (m *Megacli) gatherBbuStatus(out string, acc telegraf.Accumulator) error {
 			} else {
 				fields["issohgood"] = int64(0)
 			}
+
 			tags["adapter"] = adapter_no
 			acc.AddFields("megacli_bbu", fields, tags)
 			tags = map[string]string{}
