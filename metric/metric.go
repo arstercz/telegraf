@@ -98,13 +98,13 @@ func FromMetric(other telegraf.Metric) telegraf.Metric {
 }
 
 // change Gdiff when ntp request is ok. we should follow last value if request error,
-// and cache in 5 minute
+// and cache in 1 minute.
 func GetTimeDiff(server string) time.Duration {
 	Gdiff.mu.Lock()
 	defer Gdiff.mu.Unlock()
 
 	tnow := time.Now()
-	tcache := Gdiff.now.Add(5 * time.Minute)
+	tcache := Gdiff.now.Add(1 * time.Minute)
 
 
 	if Gdiff.fail < 2 && Gdiff.diff == 0 || tnow.After(tcache) {
