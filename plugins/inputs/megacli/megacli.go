@@ -49,7 +49,7 @@ func (*Megacli) SampleConfig() string {
   ## Gather info of the following type:
   ## raid, disk, bbu
   ## default is gather all of the three type
-  # gother_type = ["raid", "disk", "bbu"]
+  # gather_type = ["raid", "disk", "bbu"]
 
   ## On most platforms used cli utilities requires root access.
   ## Setting 'use_sudo' to true will make use of sudo to run MegaCli.
