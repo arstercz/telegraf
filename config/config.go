@@ -369,7 +369,7 @@ var agentConfig = `
   ## local time maybe change for test purpose, we should change the metric time
   ## when send to output. the diff time will be cached to improve the metric 
   ## SetTime() performace
-  time_change = false
+  # time_change = false
   # time_server = "0.centos.pool.ntp.org"
 `
 
@@ -791,7 +791,6 @@ func (c *Config) LoadConfigData(data []byte) error {
 		if len(c.Agent.TimeServer) == 0 {
 			return fmt.Errorf("you must set time_server when time_change is true")
 		}
-		c.Tags["time_server"] = c.Agent.TimeServer
 	}
 
 	if len(c.UnusedFields) > 0 {

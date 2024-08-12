@@ -114,10 +114,14 @@ func (ac *accumulator) SetPrecision(precision time.Duration) {
 
 func (ac *accumulator) getTime(t []time.Time) time.Time {
 	var timestamp time.Time
-	if len(t) > 0 {
-		timestamp = t[0]
+	if telegraf.TimeChangeInfo.Inited {
+		timestamp = telegraf.TimeChangeInfo.TimeAdjust()
 	} else {
-		timestamp = time.Now()
+		if len(t) > 0 {
+			timestamp = t[0]
+		} else {
+			timestamp = time.Now()
+		}
 	}
 	return timestamp.Round(ac.precision)
 }

@@ -153,6 +153,13 @@ func runAgent(ctx context.Context,
 			c.Agent.Interval.Duration)
 	}
 
+	if c.Agent.TimeChange {
+		err = telegraf.TimeChangeInfo.InitTime(c.Agent.TimeServer)
+		if err != nil {
+			return fmt.Errorf("Agent init timechange error: %s", err)
+		}
+	}
+
 	ag, err := agent.NewAgent(c)
 	if err != nil {
 		return err
