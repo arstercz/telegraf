@@ -1746,7 +1746,8 @@ sub is_telegraf_conf_change {
     next if $k =~ /discover/i;
 
     my $ft = _get_file_mtime($k);
-    if (abs($ft - $ts_now) < 90) {
+    # contab one minutes
+    if (abs($ft - $ts_now) < 61) {
       return 1;
     }
   }
