@@ -2948,6 +2948,7 @@ sub _get_monitor_servers {
 sub _one_enable_white {
   my $type = shift;
 
+  # force enable iptables
   return 1 if $type eq 'iptables';
 
   return 0;
