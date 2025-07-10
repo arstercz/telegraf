@@ -1,4 +1,4 @@
-/var/log/telegraf/telegraf.log 
+/var/log/telegraf/telegraf.log /var/log/telegraf/telegraf-discover.log
 {
     rotate 6
     daily
