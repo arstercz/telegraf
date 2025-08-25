@@ -29,10 +29,10 @@ else ifneq ($(findstring -rc,$(tag)),)
 	tar_version := $(version)~$(rc)
 else
 	version := $(tag:v%=%)
-	rpm_version := $(version)-3
-	rpm_iteration := 3
-	deb_version := $(version)-3
-	deb_iteration := 3
+	rpm_version := $(version)-4
+	rpm_iteration := 4
+	deb_version := $(version)-4
+	deb_iteration := 4
 	tar_version := $(version)
 endif
 

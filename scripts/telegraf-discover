@@ -2175,8 +2175,18 @@ sub disc_mysql {
   ## gather metrics from INFORMATION_SCHEMA.INNODB_METRICS
   gather_innodb_metrics = true
 
+  ## gather metrics from all channels from SHOW SLAVE STATUS command output
+  # gather_all_slave_channels = false
+
   ## gather metrics from SHOW SLAVE STATUS command output
   gather_slave_status = true
+
+  ## gather metrics from SHOW REPLICA STATUS command output, mysql 8.4+
+  # gather_replica_status = false
+
+  ## use SHOW ALL SLAVES STATUS command output for MariaDB
+  ## use SHOW ALL REPLICAS STATUS command if enable gather replica status
+  # mariadb_dialect = false
 
   ## gather metrics from SHOW BINARY LOGS command output
   gather_binary_logs = true
