@@ -29,6 +29,9 @@ type Mysql struct {
 	GatherInfoSchemaAutoInc             bool     `toml:"gather_info_schema_auto_inc"`
 	GatherInnoDBMetrics                 bool     `toml:"gather_innodb_metrics"`
 	GatherSlaveStatus                   bool     `toml:"gather_slave_status"`
+	GatherReplicaStatus                 bool     `toml:"gather_replica_status"`
+	GatherAllSlaveChannels              bool     `toml:"gather_all_slave_channels"`
+	MariadbDialect                      bool     `toml:"mariadb_dialect"`
 	GatherBinaryLogs                    bool     `toml:"gather_binary_logs"`
 	GatherTableIOWaits                  bool     `toml:"gather_table_io_waits"`
 	GatherTableLockWaits                bool     `toml:"gather_table_lock_waits"`
@@ -47,6 +50,7 @@ type Mysql struct {
 	Log telegraf.Logger `toml:"-"`
 	tls.ClientConfig
 	lastT            time.Time
+	getStatusQuery   string
 	initDone         bool
 	scanIntervalSlow uint32
 }
@@ -96,8 +100,18 @@ const sampleConfig = `
   ## gather metrics from INFORMATION_SCHEMA.INNODB_METRICS
   # gather_innodb_metrics = false
 
+  ## gather metrics from all channels from SHOW SLAVE STATUS command output
+  # gather_all_slave_channels = false
+
   ## gather metrics from SHOW SLAVE STATUS command output
   # gather_slave_status = false
+
+  ## gather metrics from SHOW REPLICA STATUS command output
+  # gather_replica_status = false
+
+  ## use SHOW ALL SLAVES STATUS command output for MariaDB
+  ## use SHOW ALL REPLICAS STATUS command if enable gather replica status
+  # mariadb_dialect = false
 
   ## gather metrics from SHOW BINARY LOGS command output
   # gather_binary_logs = false
@@ -165,6 +179,17 @@ func (m *Mysql) Description() string {
 const localhost = ""
 
 func (m *Mysql) InitMysql() {
+	switch {
+	case m.MariadbDialect && m.GatherReplicaStatus:
+		m.getStatusQuery = replicaStatusQueryMariadb
+	case m.MariadbDialect:
+		m.getStatusQuery = slaveStatusQueryMariadb
+	case m.GatherReplicaStatus:
+		m.getStatusQuery = replicaStatusQuery
+	default:
+		m.getStatusQuery = slaveStatusQuery
+	}
+
 	if len(m.IntervalSlow) > 0 {
 		interval, err := time.ParseDuration(m.IntervalSlow)
 		if err == nil && interval.Seconds() >= 1.0 {
@@ -306,6 +331,9 @@ const (
 	globalStatusQuery          = `SHOW GLOBAL STATUS`
 	globalVariablesQuery       = `SHOW GLOBAL VARIABLES`
 	slaveStatusQuery           = `SHOW SLAVE STATUS`
+	replicaStatusQuery         = `SHOW REPLICA STATUS`
+	slaveStatusQueryMariadb    = `SHOW ALL SLAVES STATUS`
+	replicaStatusQueryMariadb  = `SHOW ALL REPLICAS STATUS`
 	binaryLogsQuery            = `SHOW BINARY LOGS`
 	infoSchemaProcessListQuery = `
         SELECT COALESCE(command,''),COALESCE(state,''),count(*)
@@ -535,7 +563,7 @@ func (m *Mysql) gatherServer(serv string, acc telegraf.Accumulator) error {
 		}
 	}
 
-	if m.GatherSlaveStatus {
+	if m.GatherSlaveStatus || m.GatherReplicaStatus {
 		err = m.gatherSlaveStatuses(db, serv, acc)
 		if err != nil {
 			return err
@@ -667,11 +695,7 @@ func (m *Mysql) gatherGlobalVariables(db *sql.DB, serv string, acc telegraf.Accu
 
 func (m *Mysql) parseGlobalVariables(key string, value sql.RawBytes) (interface{}, error) {
 	if m.MetricVersion < 2 {
-		v, ok := v1.ParseValue(value)
-		if ok {
-			return v, nil
-		}
-		return v, fmt.Errorf("could not parse value: %q", string(value))
+		return v1.ParseValue(value)
 	}
 	return v2.ConvertGlobalVariables(key, value)
 }
@@ -682,7 +706,10 @@ func (m *Mysql) parseGlobalVariables(key string, value sql.RawBytes) (interface{
 // This code does not work with multi-source replication.
 func (m *Mysql) gatherSlaveStatuses(db *sql.DB, serv string, acc telegraf.Accumulator) error {
 	// run query
-	rows, err := db.Query(slaveStatusQuery)
+	var rows *sql.Rows
+	var err error
+
+	rows, err = db.Query(m.getStatusQuery)
 	if err != nil {
 		return err
 	}
@@ -693,33 +720,73 @@ func (m *Mysql) gatherSlaveStatuses(db *sql.DB, serv string, acc telegraf.Accumu
 	tags := map[string]string{"server": servtag}
 	fields := make(map[string]interface{})
 
-	// to save the column names as a field key
-	// scanning keys and values separately
-	if rows.Next() {
+	// for each channel record
+	for rows.Next() {
+		// to save the column names as a field key
+		// scanning keys and values separately
+
 		// get columns names, and create an array with its length
-		cols, err := rows.Columns()
+		cols, err := rows.ColumnTypes()
 		if err != nil {
 			return err
 		}
-		vals := make([]interface{}, len(cols))
+
+		vals := make([]sql.RawBytes, len(cols))
+		valPtrs := make([]interface{}, len(cols))
 		// fill the array with sql.Rawbytes
 		for i := range vals {
-			vals[i] = &sql.RawBytes{}
+			vals[i] = sql.RawBytes{}
+			valPtrs[i] = &vals[i]
 		}
-		if err = rows.Scan(vals...); err != nil {
+		if err = rows.Scan(valPtrs...); err != nil {
 			return err
 		}
 		// range over columns, and try to parse values
 		for i, col := range cols {
+			colName := col.Name()
+
 			if m.MetricVersion >= 2 {
-				col = strings.ToLower(col)
+				colName = strings.ToLower(colName)
 			}
-			if value, ok := m.parseValue(*vals[i].(*sql.RawBytes)); ok {
-				fields["slave_"+col] = value
+
+			colValue := vals[i]
+
+			if m.GatherAllSlaveChannels &&
+				(strings.EqualFold(colName, "channel_name") || strings.EqualFold(colName, "connection_name")) {
+				// Since the default channel name is empty, we need this block
+				channelName := "default"
+				if len(colValue) > 0 {
+					channelName = string(colValue)
+				}
+				tags["channel"] = channelName
+				continue
 			}
+
+			if len(colValue) == 0 {
+				continue
+			}
+
+			value, err := m.parseValueByDatabaseTypeName(colValue, col.DatabaseTypeName())
+			if err != nil {
+				errString := fmt.Errorf("error parsing mysql slave status %q=%q: %w", colName, string(colValue), err)
+				if m.MetricVersion < 2 {
+					m.Log.Debug(errString)
+				} else {
+					acc.AddError(errString)
+				}
+				continue
+			}
+
+			fields["slave_"+colName] = value
 		}
 		trimNewline(fields)
 		acc.AddFields("mysql", fields, tags)
+
+		// Only the first row is relevant if not all slave-channels should be gathered,
+		// so break here and skip the remaining rows
+		if !m.GatherAllSlaveChannels {
+			break
+		}
 	}
 
 	return nil
@@ -1367,9 +1434,14 @@ func (m *Mysql) gatherInnoDBMetrics(db *sql.DB, serv string, acc telegraf.Accumu
 			return err
 		}
 		key = strings.ToLower(key)
-		if value, ok := m.parseValue(val); ok {
-			fields[key] = value
+		value, err := m.parseValue(val)
+		if err != nil {
+			acc.AddError(fmt.Errorf("error parsing mysql InnoDB metric %q=%q: %w", key, string(val), err))
+			continue
 		}
+
+		fields[key] = value
+
 		// Send 20 fields at a time
 		if len(fields) >= 20 {
 			acc.AddFields("mysql_innodb", fields, tags)
@@ -1925,7 +1997,7 @@ func (m *Mysql) gatherTableSchema(db *sql.DB, serv string, acc telegraf.Accumula
 	return nil
 }
 
-func (m *Mysql) parseValue(value sql.RawBytes) (interface{}, bool) {
+func (m *Mysql) parseValue(value sql.RawBytes) (interface{}, error) {
 	if m.MetricVersion < 2 {
 		return v1.ParseValue(value)
 	}
@@ -1933,26 +2005,52 @@ func (m *Mysql) parseValue(value sql.RawBytes) (interface{}, bool) {
 }
 
 // parseValue can be used to convert values such as "ON","OFF","Yes","No" to 0,1
-func parseValue(value sql.RawBytes) (interface{}, bool) {
+func parseValue(value sql.RawBytes) (interface{}, error) {
 	if bytes.EqualFold(value, []byte("YES")) || bytes.Compare(value, []byte("ON")) == 0 {
-		return 1, true
+		return int64(1), nil
 	}
 
 	if bytes.EqualFold(value, []byte("NO")) || bytes.Compare(value, []byte("OFF")) == 0 {
-		return 0, true
+		return int64(0), nil
 	}
 
 	if val, err := strconv.ParseInt(string(value), 10, 64); err == nil {
-		return val, true
+		return val, nil
 	}
 	if val, err := strconv.ParseFloat(string(value), 64); err == nil {
-		return val, true
+		return val, nil
 	}
 
 	if len(string(value)) > 0 {
-		return string(value), true
+		return string(value), nil
 	}
-	return nil, false
+	return nil, fmt.Errorf("unconvertible value: %q", string(value))
+}
+
+func (m *Mysql) parseValueByDatabaseTypeName(value sql.RawBytes, databaseTypeName string) (interface{}, error) {
+	if m.MetricVersion < 2 {
+		return v1.ParseValue(value)
+	}
+
+	if bytes.EqualFold(value, []byte("YES")) || bytes.Compare(value, []byte("ON")) == 0 {
+		return 1, nil
+	}
+
+	if bytes.EqualFold(value, []byte("NO")) || bytes.Compare(value, []byte("OFF")) == 0 {
+		return 0, nil
+	}
+
+	switch databaseTypeName {
+	case "INT":
+		return v2.ParseInt(value)
+	case "BIGINT":
+		return v2.ParseUint(value)
+	case "VARCHAR":
+		return v2.ParseString(value)
+	default:
+		m.Log.Debugf("unknown database type name %q in parseValueByDatabaseTypeName", databaseTypeName)
+		return v2.ParseValue(value)
+	}
 }
 
 // findThreadState can be used to find thread state by command and plain state
