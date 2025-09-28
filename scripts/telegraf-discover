@@ -2103,7 +2103,7 @@ sub _replace_mysql {
   foreach my $k (@$items) {
     my $port = $k->{port};
     my $user = $k->{user};
-    my $pass = $k->{pass};
+    my $pass = _pass_url_encode($k->{pass});
 
     next if (!(defined $user) or !(defined $pass));
 
@@ -2240,7 +2240,7 @@ sub _replace_mongodb {
   foreach my $k (@$items) {
     my $port = $k->{port};
     my $user = $k->{user};
-    my $pass = $k->{pass};
+    my $pass = _pass_url_encode($k->{pass});
 
     my $dsn;
     if (defined $user and defined $pass) {
@@ -2389,7 +2389,7 @@ sub _replace_pika {
   my @servers;
   foreach my $k (@$items) {
     my $port = $k->{port};
-    my $pass = $k->{pass};
+    my $pass = _pass_url_encode($k->{pass});
 
     my $dsn;
     if (defined $pass) {
@@ -2461,7 +2461,7 @@ sub _replace_postgresql {
   foreach my $k (@$items) {
     my $port = $k->{port};
     my $user = $k->{user};
-    my $pass = $k->{pass};
+    my $pass = _pass_url_encode($k->{pass});
     my $host = $k->{is_local} > 0
              ? 'localhost'
              : '$IP';
