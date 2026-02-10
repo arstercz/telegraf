@@ -1357,14 +1357,14 @@ sub get_key_from_consul {
   my ($key1, $key2) = $self->get_consul_key($meta);
   return undef if (!defined($key1) && !defined($key2));
 
-  my $result = undef;;
-  foreach my $s (shuffle(@{$self->{servers}})) {
-    $result = $self->make_consul_request($s, $key1);
-    last if defined $result->{value};
+  my $result = undef;
+  my @keys = $self->get_consul_key($meta);
 
-    if (defined $key2) {
-      $result = $self->make_consul_request($s, $key2);
-      last if defined $result->{value};
+  OUTER:
+  foreach my $key (@keys) {
+    foreach my $s (shuffle(@{$self->{servers}})) {
+      $result = $self->make_consul_request($s, $key);
+      last OUTER if defined $result->{value};
     }
   }
 
