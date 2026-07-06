@@ -162,3 +162,6 @@ replace github.com/satori/go.uuid => github.com/gofrs/uuid v3.2.0+incompatible
 
 // replaced due to https//github.com/mdlayher/apcupsd/issues/10
 replace github.com/mdlayher/apcupsd => github.com/influxdata/apcupsd v0.0.0-20210427145308-694d5caead0e
+
+// replaced due to fix redis 7.x parse
+replace github.com/go-redis/redis => github.com/arstercz/go-redis v6.15.9-fix-issue2085+incompatible
