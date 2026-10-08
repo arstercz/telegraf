@@ -190,6 +190,12 @@ if (defined $consul) {
   $discover = $result->{value} || '';
   $consul->send_custom_to_influxdb('telegraf_consul', 'status', $result->{status});
 
+  # exit if consul error
+  if ($result->{status} == 599) {
+    Utils::time_print("error - query consul with 599 error, skip to run ...");
+    exit 1;
+  }
+
   Utils::create_dir_if("$confd") 
       or croak "create $confd error and $confd is not exist";
 
